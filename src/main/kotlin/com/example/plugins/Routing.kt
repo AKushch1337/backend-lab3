@@ -1,24 +1,17 @@
 package com.akushch.plugins
 
-import com.example.model.Category
-import com.example.model.HealthCheckResponse
-import com.example.model.Record
-import com.example.model.User
+import com.example.model.*
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.LocalDateTime
-import java.util.concurrent.atomic.AtomicInteger
 
 fun Application.configureRouting() {
-    val users = mutableListOf<User>()
-    val categories = mutableListOf<Category>()
-    val records = mutableListOf<Record>()
-    val userIdCounter = AtomicInteger(1)
-    val categoryIdCounter = AtomicInteger(1)
-    val recordIdCounter = AtomicInteger(1)
     routing {
         get("/healthcheck") {
             val currentTime = LocalDateTime.now().toString()
@@ -30,9 +23,9 @@ fun Application.configureRouting() {
             get("/{userId}") {
                 val userId = call.parameters["userId"]?.toIntOrNull()
                 if (userId != null) {
-                    val user = users.find { it.id == userId }
+                    val user = transaction { Users.select { Users.id eq userId }.singleOrNull() }
                     if (user != null) {
-                        call.respond(user)
+                        call.respond(User(id = user[Users.id].value, name = user[Users.name]))
                     } else {
                         call.respond(HttpStatusCode.NotFound, "User not found")
                     }
@@ -44,9 +37,8 @@ fun Application.configureRouting() {
             delete("/{userId}") {
                 val userId = call.parameters["userId"]?.toIntOrNull()
                 if (userId != null) {
-                    val user = users.find { it.id == userId }
-                    if (user != null) {
-                        users.remove(user)
+                    val deletedRows = transaction { Users.deleteWhere { Users.id eq userId } }
+                    if (deletedRows > 0) {
                         call.respond(HttpStatusCode.OK, "User deleted successfully")
                     } else {
                         call.respond(HttpStatusCode.NotFound, "User not found")
@@ -58,36 +50,47 @@ fun Application.configureRouting() {
 
             post {
                 val newUser = call.receive<User>()
-                newUser.id = userIdCounter.getAndIncrement()
-                users.add(newUser)
-                call.respond(HttpStatusCode.Created, newUser)
+                val insertedUser = transaction {
+                    Users.insertAndGetId {
+                        it[name] = newUser.name
+                    }
+                }
+                call.respond(HttpStatusCode.Created, User(id = insertedUser.value, name = newUser.name))
             }
 
         }
 
         route("/users") {
             get {
-                call.respond(users)
+                val allUsers = transaction {
+                    Users.selectAll().map { User(id = it[Users.id].value, name = it[Users.name]) }
+                }
+                call.respond(allUsers)
             }
         }
         route("/category") {
             get {
-                call.respond(categories)
+                val allCategories = transaction {
+                    Categories.selectAll().map { Category(id = it[Categories.id].value, name = it[Categories.name]) }
+                }
+                call.respond(allCategories)
             }
 
             post {
                 val newCategory = call.receive<Category>()
-                newCategory.id = categoryIdCounter.getAndIncrement()
-                categories.add(newCategory)
-                call.respond(HttpStatusCode.Created, newCategory)
+                val insertedCategory = transaction {
+                    Categories.insertAndGetId {
+                        it[name] = newCategory.name
+                    }
+                }
+                call.respond(HttpStatusCode.Created, Category(id = insertedCategory.value, name = newCategory.name))
             }
 
             delete("/{categoryId}") {
                 val categoryId = call.parameters["categoryId"]?.toIntOrNull()
                 if (categoryId != null) {
-                    val category = categories.find { it.id == categoryId }
-                    if (category != null) {
-                        categories.remove(category)
+                    val deletedRows = transaction { Categories.deleteWhere { Categories.id eq categoryId } }
+                    if (deletedRows > 0) {
                         call.respond(HttpStatusCode.OK, "Category deleted successfully")
                     } else {
                         call.respond(HttpStatusCode.NotFound, "Category not found")
@@ -103,9 +106,18 @@ fun Application.configureRouting() {
                 val categoryId = call.parameters["category_id"]?.toIntOrNull()
 
                 val filteredRecords = when {
-                    userId != null && categoryId != null -> records.filter { it.userId == userId && it.categoryId == categoryId }
-                    userId != null -> records.filter { it.userId == userId }
-                    categoryId != null -> records.filter { it.categoryId == categoryId }
+                    userId != null && categoryId != null -> transaction {
+                        Records.select { (Records.userId eq userId) and (Records.categoryId eq categoryId) }
+                            .map { Record(id = it[Records.id].value, userId = it[Records.userId], categoryId = it[Records.categoryId], createdAt = it[Records.createdAt], amount = it[Records.amount]) }
+                    }
+                    userId != null -> transaction {
+                        Records.select { Records.userId eq userId }
+                            .map { Record(id = it[Records.id].value, userId = it[Records.userId], categoryId = it[Records.categoryId], createdAt = it[Records.createdAt], amount = it[Records.amount]) }
+                    }
+                    categoryId != null -> transaction {
+                        Records.select { Records.categoryId eq categoryId }
+                            .map { Record(id = it[Records.id].value, userId = it[Records.userId], categoryId = it[Records.categoryId], createdAt = it[Records.createdAt], amount = it[Records.amount]) }
+                    }
                     else -> {
                         call.respond(HttpStatusCode.BadRequest, "Either user_id or category_id is required")
                         return@get
@@ -117,18 +129,31 @@ fun Application.configureRouting() {
 
             post {
                 val newRecord = call.receive<Record>()
-                newRecord.id = recordIdCounter.getAndIncrement()
-                newRecord.createdAt = LocalDateTime.now().toString()
-                records.add(newRecord)
-                call.respond(HttpStatusCode.Created, newRecord)
+                val insertedRecord = transaction {
+                    Records.insertAndGetId {
+                        it[userId] = newRecord.userId
+                        it[categoryId] = newRecord.categoryId
+                        it[createdAt] = newRecord.createdAt.toString()
+                        it[amount] = newRecord.amount
+                    }
+                }
+                call.respond(HttpStatusCode.Created, Record(id = insertedRecord.value, userId = newRecord.userId, categoryId = newRecord.categoryId, createdAt = newRecord.createdAt, amount = newRecord.amount))
             }
 
             get("/{recordId}") {
                 val recordId = call.parameters["recordId"]?.toIntOrNull()
                 if (recordId != null) {
-                    val record = records.find { it.id == recordId }
+                    val record = transaction { Records.select { Records.id eq recordId }.singleOrNull() }
                     if (record != null) {
-                        call.respond(record)
+                        call.respond(
+                            Record(
+                                id = record[Records.id].value,
+                                userId = record[Records.userId],
+                                categoryId = record[Records.categoryId],
+                                createdAt = record[Records.createdAt].toString(),
+                                amount = record[Records.amount]
+                            )
+                        )
                     } else {
                         call.respond(HttpStatusCode.NotFound, "Record not found")
                     }
@@ -139,9 +164,8 @@ fun Application.configureRouting() {
             delete("/{recordId}") {
                 val recordId = call.parameters["recordId"]?.toIntOrNull()
                 if (recordId != null) {
-                    val record = records.find { it.id == recordId }
-                    if (record != null) {
-                        records.remove(record)
+                    val deletedRows = transaction { Records.deleteWhere { Records.id eq recordId } }
+                    if (deletedRows > 0) {
                         call.respond(HttpStatusCode.OK, "Record deleted successfully")
                     } else {
                         call.respond(HttpStatusCode.NotFound, "Record not found")

@@ -8,7 +8,7 @@ data class Record(
     var id: Int = 0,
     val userId: Int,
     val categoryId: Int,
-    var createdAt: LocalDateTime = LocalDateTime.now(),
+    var createdAt: String = LocalDateTime.now(),
     val amount: Double,
     val currency: Currency? = null,
     val userCurrencyCode: String? = null  // Nullable column for user-specific currency code
