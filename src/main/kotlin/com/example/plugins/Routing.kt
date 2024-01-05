@@ -70,6 +70,33 @@ fun Application.configureRouting() {
                 call.respond(users)
             }
         }
+        route("/category") {
+            get {
+                call.respond(categories)
+            }
+
+            post {
+                val newCategory = call.receive<Category>()
+                newCategory.id = categoryIdCounter.getAndIncrement()
+                categories.add(newCategory)
+                call.respond(HttpStatusCode.Created, newCategory)
+            }
+
+            delete("/{categoryId}") {
+                val categoryId = call.parameters["categoryId"]?.toIntOrNull()
+                if (categoryId != null) {
+                    val category = categories.find { it.id == categoryId }
+                    if (category != null) {
+                        categories.remove(category)
+                        call.respond(HttpStatusCode.OK, "Category deleted successfully")
+                    } else {
+                        call.respond(HttpStatusCode.NotFound, "Category not found")
+                    }
+                } else {
+                    call.respond(HttpStatusCode.BadRequest, "Invalid categoryId format")
+                }
+            }
+        }
     }
 }
 
