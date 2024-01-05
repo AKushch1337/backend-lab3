@@ -136,6 +136,20 @@ fun Application.configureRouting() {
                     call.respond(HttpStatusCode.BadRequest, "Invalid recordId format")
                 }
             }
+            delete("/{recordId}") {
+                val recordId = call.parameters["recordId"]?.toIntOrNull()
+                if (recordId != null) {
+                    val record = records.find { it.id == recordId }
+                    if (record != null) {
+                        records.remove(record)
+                        call.respond(HttpStatusCode.OK, "Record deleted successfully")
+                    } else {
+                        call.respond(HttpStatusCode.NotFound, "Record not found")
+                    }
+                } else {
+                    call.respond(HttpStatusCode.BadRequest, "Invalid recordId format")
+                }
+            }
         }
     }
 }
