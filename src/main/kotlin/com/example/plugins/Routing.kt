@@ -26,6 +26,44 @@ fun Application.configureRouting() {
             val healthCheckResponse = HealthCheckResponse(currentTime, serverStatus)
             call.respond(healthCheckResponse)
         }
+        route("/user") {
+            get("/{userId}") {
+                val userId = call.parameters["userId"]?.toIntOrNull()
+                if (userId != null) {
+                    val user = users.find { it.id == userId }
+                    if (user != null) {
+                        call.respond(user)
+                    } else {
+                        call.respond(HttpStatusCode.NotFound, "User not found")
+                    }
+                } else {
+                    call.respond(HttpStatusCode.BadRequest, "Invalid userId format")
+                }
+            }
+
+            delete("/{userId}") {
+                val userId = call.parameters["userId"]?.toIntOrNull()
+                if (userId != null) {
+                    val user = users.find { it.id == userId }
+                    if (user != null) {
+                        users.remove(user)
+                        call.respond(HttpStatusCode.OK, "User deleted successfully")
+                    } else {
+                        call.respond(HttpStatusCode.NotFound, "User not found")
+                    }
+                } else {
+                    call.respond(HttpStatusCode.BadRequest, "Invalid userId format")
+                }
+            }
+
+            post {
+                val newUser = call.receive<User>()
+                newUser.id = userIdCounter.getAndIncrement()
+                users.add(newUser)
+                call.respond(HttpStatusCode.Created, newUser)
+            }
+
+        }
     }
 }
 
