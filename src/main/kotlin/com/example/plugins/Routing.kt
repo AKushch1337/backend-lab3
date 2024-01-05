@@ -97,6 +97,46 @@ fun Application.configureRouting() {
                 }
             }
         }
+        route("/record") {
+            get {
+                val userId = call.parameters["user_id"]?.toIntOrNull()
+                val categoryId = call.parameters["category_id"]?.toIntOrNull()
+
+                val filteredRecords = when {
+                    userId != null && categoryId != null -> records.filter { it.userId == userId && it.categoryId == categoryId }
+                    userId != null -> records.filter { it.userId == userId }
+                    categoryId != null -> records.filter { it.categoryId == categoryId }
+                    else -> {
+                        call.respond(HttpStatusCode.BadRequest, "Either user_id or category_id is required")
+                        return@get
+                    }
+                }
+
+                call.respond(filteredRecords)
+            }
+
+            post {
+                val newRecord = call.receive<Record>()
+                newRecord.id = recordIdCounter.getAndIncrement()
+                newRecord.createdAt = LocalDateTime.now().toString()
+                records.add(newRecord)
+                call.respond(HttpStatusCode.Created, newRecord)
+            }
+
+            get("/{recordId}") {
+                val recordId = call.parameters["recordId"]?.toIntOrNull()
+                if (recordId != null) {
+                    val record = records.find { it.id == recordId }
+                    if (record != null) {
+                        call.respond(record)
+                    } else {
+                        call.respond(HttpStatusCode.NotFound, "Record not found")
+                    }
+                } else {
+                    call.respond(HttpStatusCode.BadRequest, "Invalid recordId format")
+                }
+            }
+        }
     }
 }
 
