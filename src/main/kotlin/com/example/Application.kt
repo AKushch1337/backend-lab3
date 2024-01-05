@@ -1,6 +1,8 @@
 package com.example
 
 import com.akushch.plugins.configureRouting
+import com.example.plugins.configureStatusPages
+import com.example.plugins.configureValidation
 import io.ktor.serialization.gson.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
@@ -21,5 +23,7 @@ fun Application.module() {
         }
     }
     configureRouting()
+    configureValidation()
+    configureStatusPages()
 }
 
