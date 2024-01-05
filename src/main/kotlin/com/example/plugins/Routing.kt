@@ -64,6 +64,12 @@ fun Application.configureRouting() {
             }
 
         }
+
+        route("/users") {
+            get {
+                call.respond(users)
+            }
+        }
     }
 }
 
