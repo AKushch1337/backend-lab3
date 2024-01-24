@@ -14,5 +14,8 @@ object DatabaseConfig {
         transaction(database) {
             SchemaUtils.create(Users, Categories, Records, Currencies)
         }
+
     }
+
 }
+

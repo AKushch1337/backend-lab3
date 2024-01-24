@@ -2,24 +2,23 @@ package com.example.model
 
 import org.jetbrains.exposed.dao.id.IntIdTable
 import java.time.LocalDateTime
+import java.time.LocalDateTime.now
 
 
 data class Record(
     var id: Int = 0,
     val userId: Int,
     val categoryId: Int,
-    var createdAt: String = LocalDateTime.now(),
+    var createdAt: String,
     val amount: Double,
-    val currency: Currency? = null,
-    val userCurrencyCode: String? = null  // Nullable column for user-specific currency code
+    val currencyId: Int?
 )
 
 
 object Records : IntIdTable() {
     val userId = integer("userId").references(Users.id)
     val categoryId = integer("categoryId").references(Categories.id)
-    val createdAt = varchar("createdAt", 255)
+    val createdAt = varchar("createdAt", 255).default(now().toString()) // Set default to the current time
     val amount = double("amount")
-    val currencyCode = varchar("currency_code", 3).nullable()  // Nullable column
-    val userCurrencyCode = varchar("user_currency_code", 3).nullable()  // Nullable column
+    val currencyId = integer("currency_id").references(Currencies.id).nullable()
 }
