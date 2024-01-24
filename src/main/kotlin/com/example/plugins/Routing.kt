@@ -12,6 +12,7 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.LocalDateTime
 
 fun Application.configureRouting() {
+
     routing {
         get("/healthcheck") {
             val currentTime = LocalDateTime.now().toString()
@@ -25,7 +26,8 @@ fun Application.configureRouting() {
                 if (userId != null) {
                     val user = transaction { Users.select { Users.id eq userId }.singleOrNull() }
                     if (user != null) {
-                        call.respond(User(id = user[Users.id].value, name = user[Users.name]))
+                        val userResponse = User(id = user[Users.id].value, name = user[Users.name], defaultCurrencyId = user[Users.defaultCurrencyId])
+                        call.respond(userResponse)
                     } else {
                         call.respond(HttpStatusCode.NotFound, "User not found")
                     }
@@ -53,9 +55,10 @@ fun Application.configureRouting() {
                 val insertedUser = transaction {
                     Users.insertAndGetId {
                         it[name] = newUser.name
+                        it[defaultCurrencyId] = newUser.defaultCurrencyId
                     }
                 }
-                call.respond(HttpStatusCode.Created, User(id = insertedUser.value, name = newUser.name))
+                call.respond(HttpStatusCode.Created, User(id = insertedUser.value, name = newUser.name, defaultCurrencyId = newUser.defaultCurrencyId))
             }
 
         }
@@ -63,7 +66,7 @@ fun Application.configureRouting() {
         route("/users") {
             get {
                 val allUsers = transaction {
-                    Users.selectAll().map { User(id = it[Users.id].value, name = it[Users.name]) }
+                    Users.selectAll().map { User(id = it[Users.id].value, name = it[Users.name], defaultCurrencyId = it[Users.defaultCurrencyId]) }
                 }
                 call.respond(allUsers)
             }
@@ -108,15 +111,15 @@ fun Application.configureRouting() {
                 val filteredRecords = when {
                     userId != null && categoryId != null -> transaction {
                         Records.select { (Records.userId eq userId) and (Records.categoryId eq categoryId) }
-                            .map { Record(id = it[Records.id].value, userId = it[Records.userId], categoryId = it[Records.categoryId], createdAt = it[Records.createdAt], amount = it[Records.amount]) }
+                            .map { Record(id = it[Records.id].value, userId = it[Records.userId], categoryId = it[Records.categoryId], createdAt = it[Records.createdAt], amount = it[Records.amount], currencyId = it[Records.currencyId]) }
                     }
                     userId != null -> transaction {
                         Records.select { Records.userId eq userId }
-                            .map { Record(id = it[Records.id].value, userId = it[Records.userId], categoryId = it[Records.categoryId], createdAt = it[Records.createdAt], amount = it[Records.amount]) }
+                            .map { Record(id = it[Records.id].value, userId = it[Records.userId], categoryId = it[Records.categoryId], createdAt = it[Records.createdAt], amount = it[Records.amount], currencyId = it[Records.currencyId]) }
                     }
                     categoryId != null -> transaction {
                         Records.select { Records.categoryId eq categoryId }
-                            .map { Record(id = it[Records.id].value, userId = it[Records.userId], categoryId = it[Records.categoryId], createdAt = it[Records.createdAt], amount = it[Records.amount]) }
+                            .map { Record(id = it[Records.id].value, userId = it[Records.userId], categoryId = it[Records.categoryId], createdAt = it[Records.createdAt], amount = it[Records.amount], currencyId = it[Records.currencyId]) }
                     }
                     else -> {
                         call.respond(HttpStatusCode.BadRequest, "Either user_id or category_id is required")
@@ -127,17 +130,19 @@ fun Application.configureRouting() {
                 call.respond(filteredRecords)
             }
 
+
             post {
                 val newRecord = call.receive<Record>()
                 val insertedRecord = transaction {
                     Records.insertAndGetId {
                         it[userId] = newRecord.userId
                         it[categoryId] = newRecord.categoryId
-                        it[createdAt] = newRecord.createdAt.toString()
+                        it[createdAt] = LocalDateTime.now().toString()
                         it[amount] = newRecord.amount
+                        it[currencyId] = newRecord.currencyId
                     }
                 }
-                call.respond(HttpStatusCode.Created, Record(id = insertedRecord.value, userId = newRecord.userId, categoryId = newRecord.categoryId, createdAt = newRecord.createdAt, amount = newRecord.amount))
+                call.respond(HttpStatusCode.Created, Record(id = insertedRecord.value, userId = newRecord.userId, categoryId = newRecord.categoryId, createdAt = LocalDateTime.now().toString(), amount = newRecord.amount, currencyId = newRecord.currencyId))
             }
 
             get("/{recordId}") {
@@ -150,8 +155,9 @@ fun Application.configureRouting() {
                                 id = record[Records.id].value,
                                 userId = record[Records.userId],
                                 categoryId = record[Records.categoryId],
-                                createdAt = record[Records.createdAt].toString(),
-                                amount = record[Records.amount]
+                                createdAt = record[Records.createdAt],
+                                amount = record[Records.amount],
+                                currencyId = record[Records.currencyId]
                             )
                         )
                     } else {
@@ -175,6 +181,41 @@ fun Application.configureRouting() {
                 }
             }
         }
+        // Inside the route("/currency") block
+        route("/currency") {
+            get {
+                val allCurrencies = transaction {
+                    Currencies.selectAll().map { Currency(id = it[Currencies.id].value, code = it[Currencies.code], name = it[Currencies.name]) }
+                }
+                call.respond(allCurrencies)
+            }
+
+            post {
+                val newCurrency = call.receive<Currency>()
+                val insertedCurrency = transaction {
+                    Currencies.insertAndGetId {
+                        it[code] = newCurrency.code
+                        it[name] = newCurrency.name
+                    }
+                }
+                call.respond(HttpStatusCode.Created, Currency(id = insertedCurrency.value, code = newCurrency.code, name = newCurrency.name))
+            }
+
+            delete("/{currencyId}") {
+                val currencyId = call.parameters["currencyId"]?.toIntOrNull()
+                if (currencyId != null) {
+                    val deletedRows = transaction { Currencies.deleteWhere { Currencies.id eq currencyId } }
+                    if (deletedRows > 0) {
+                        call.respond(HttpStatusCode.OK, "Currency deleted successfully")
+                    } else {
+                        call.respond(HttpStatusCode.NotFound, "Currency not found")
+                    }
+                } else {
+                    call.respond(HttpStatusCode.BadRequest, "Invalid currencyId format")
+                }
+            }
+        }
+
     }
 }
 
