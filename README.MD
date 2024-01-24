@@ -1,11 +1,16 @@
 # backend-lab2
 
-Simple REST API
+DB app
+
+# My variant
+
+Number in group list = 10. Variant 10 % 3 = 1 -> Currencies 
+
 
 # Build the project
 ## Clone the project
 ```bash
-git clone https://github.com/AKushch1337/backend-lab1
+git clone https://github.com/AKushch1337/backend-lab3
 ```
 ## Move into the directory of the project
 ```bash
@@ -23,11 +28,11 @@ cd /path/to/project
 # Build the project using Docker
 
 ```bash
-docker build . -t lab1:1.0 
+docker build . -t lab3:1.0 
 ```
 
 ```bash
-docker run -p 8080:8080 --rm lab1:1.0
+docker run -p 8080:8080 --rm lab3:1.0
 ```
 
 # Build the project using Docker Compose
